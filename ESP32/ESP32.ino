@@ -1,32 +1,34 @@
 #include <ArduinoJson.h>
 #include <Wifi.h>;
 
-char rxBuffer[3];
+byte rxBuffer[3];
+int rxBufferIndex = 0;
 unsigned long lastSer=0;
 int state;
-bool check1 = false, check2 = false, iread=false;
+bool check1 = false, check2 = false;
 
-void handleData(char data[3]) {
+void handleData(byte data[3]) {
 	
-	
+	digitalWrite(LED_BUILTIN, HIGH);
+	delay(1000);
 	if (!(check1 && check2)) {
-		if (data[0] == data[1] == data[2] == 0x01) {
-			Serial.write(0x01);
+		if (data[0] == data[1] == data[2] == byte{ 0x01 }) {
+			Serial.write(byte{ 0x01 });
 			check1 = true;
 		}
-		else if (data[0] == data[1] == data[2] == 0x02 && check1) {
-			Serial.write(0x02);
+		else if (data[0] == data[1] == data[2] == byte{ 0x02 }&& check1) {
+			Serial.write(byte{ 0x02 });
 			check2 = true;
 		}
 		else {
-			Serial.write(0x03);
+			Serial.write(byte{ 0x03 });
 			check1 = false;
 			check2 = false;
 		}
 	}
 	else {
 		state = data[0];
-		Serial.write(0x10);
+		Serial.write(byte{ 0x10 });
 		check1 = false;
 		check2 = false;
 	}
@@ -42,17 +44,21 @@ void setup() {
 }
 // the loop function runs over and over again until power down or reset
 void loop() {
-	iread = false;
+	digitalWrite(LED_BUILTIN, LOW);
 	//digitalWrite(LED_BUILTIN, LOW);
 	while (Serial.available()>0) {
-		digitalWrite(LED_BUILTIN, HIGH);
-		*rxBuffer += Serial.read();
+		rxBuffer[rxBufferIndex] +=(byte)Serial.read();
+		rxBufferIndex++;
 		lastSer = millis();
-		iread = true;
+		//digitalWrite(LED_BUILTIN, HIGH);
 	}
-	if (millis() - lastSer > 5000 && iread) {
+	if (millis() - lastSer > 5000) {
 		handleData(rxBuffer);
-		digitalWrite(LED_BUILTIN, HIGH);
+		
+		for (int j = 0; j < rxBufferIndex; j++) {
+			rxBuffer[j] = 0;
+			rxBufferIndex = 0;
+		}
 	}
 	
 	

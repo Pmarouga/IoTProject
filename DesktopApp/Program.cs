@@ -42,7 +42,7 @@ namespace DesktopApp
                 Thread.Sleep(5000);
                 port.Read(byt, 0, 1);
                 Console.WriteLine("IREAD");
-                if ((char)byt[0] == 0x01)
+                if (byt[0] == 0x01)
                 {
                     isAl = true;
                     Console.WriteLine("ESP is Alive");
