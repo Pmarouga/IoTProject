@@ -9,88 +9,150 @@ namespace DesktopApp
 {
     class Program
     {
+        static DateTime start;
+        static TimeSpan time;
+        static bool iSent = false;
+        static bool isAl = false;
+        static bool isRdy = false;
+        static bool iRead = false;
+        static int i = 11;
         static void Main(string[] args)
         {
-            int i = 0;
-            SerialPort port = new SerialPort("COM4", 115200);
+            SerialPort port = new SerialPort("COM6", 115200);
+
+            port.DataReceived += new SerialDataReceivedEventHandler(DataReceivedHandler);
+
             port.Open();
-            //port.ReadTimeout = 5000;
-           // port.WriteTimeout = 5000;
+            port.WriteTimeout = 5000;
             Console.WriteLine("Connected");
 
+            start = DateTime.Now;
             while (true)
             {
-                bool isAl = false;
-                bool isRdy = false;
-                Console.WriteLine("Starting con");
-                isAlive(port, isAl);
-                isReady(port, isRdy);
-                sendData(port, BitConverter.GetBytes(i));
-                Thread.Sleep(5000);
-                i++;
-            }
-            //port.Close();
+                if (!isAl)
+                {
+                    if (!iSent)
+                    {
+                        isAlive(port);
+                    }
 
-        }
-       static void isAlive(SerialPort port, bool isAl)
-        {
-            while (!isAl) {
-                port.Write(new byte[] { 0x01, 0x01, 0x01 }, 0, 3);
-                Thread.Sleep(5000);
-                Console.WriteLine("Send isAlive");
-                byte[] byt = new byte[1];
-                Thread.Sleep(5000);
-                port.Read(byt, 0, 1);
-                Console.WriteLine("IREAD");
-                if (byt[0] == 0x01)
-                {
-                    isAl = true;
-                    Console.WriteLine("ESP is Alive");
                 }
-                else if(byt[0]==0x03)
+                else if (!isRdy)
+
                 {
-                    Console.WriteLine("Ërror detected");
+                    if (!iSent)
+                    {
+                        isReady(port);
+                    }
                 }
                 else
                 {
-                    Console.Write(byt[0]);
+                    if (!iSent)
+                    { 
+                        sendData(port, BitConverter.GetBytes(i));
+                        i++;   
+                    }
                 }
+                time = DateTime.Now - start;
+                if(iSent && !iRead  && time.Seconds > 10)
+                {
+                    isAl=false;
+                    isRdy=false;
+                    iSent = false;    
+                }   
             }
         }
-        static void isReady(SerialPort port, bool isRdy)
+       static void reset()
         {
-            while (!isRdy)
-            {
-                port.Write(new byte[] { 0x02, 0x02, 0x02 }, 0, 3);
-                Console.WriteLine("Send isERdy");
-                byte[] byt = new byte[1];
-                port.Read(byt, 0, 1);
-                if (byt[0] == 0x02)
-                {
-                    isRdy = true;
-                    Console.WriteLine("ESP is Ready");
-                }
-                else if (byt[0] == 0x03)
-                {
-                    Console.WriteLine("Error Detected");
-                    isAlive(port, false);
-                }
-            }
+            isAl = false;
+            isRdy = false;
+            iSent = false;
+            iRead = false;
+        }
+       static  void isAlive(SerialPort port)
+        {
+            
+                start = DateTime.Now;
+                iSent = true;
+                iRead=false;
+                port.Write(new byte[] { 0x07, 0x07, 0x07 }, 0, 3);
+                Console.WriteLine("Send isAlive");                         
+        }
+        static void isReady(SerialPort port)
+        {
+                start = DateTime.Now;
+                iSent = true;
+                iRead = false;
+                port.Write(new byte[] { 0x02, 0x02, 0x02 }, 0, 3); 
+                Console.WriteLine("Send isRdy");
         }
         static void sendData(SerialPort port, byte[] data)
         {
+            start = DateTime.Now;
+            iSent = true;
+            iRead = false;
             port.Write(data, 0, data.Count());
-            byte[] byt = new byte[1];
-            port.Read(byt, 0, 1);
-            if (byt[0] == 0x03)
+            Console.WriteLine("Sent Data");
+        }
+        private static void DataReceivedHandler(object sender, SerialDataReceivedEventArgs e)
+        {
+            SerialPort sp = (SerialPort)sender;
+                byte[] b=new byte[1];
+            int indata = sp.ReadByte();
+            Console.WriteLine("Data Received:");
+            Console.Write(indata);
+            iRead = true;
+            if (isAl == false)
             {
-                Console.WriteLine("Error");
+                if (indata == 0x07)
+                {
+                    isAl = true;
+                    iSent = false;
+                }
+                else if (indata == 0x03)
+                {
+                    Console.WriteLine("Failed isAl");
+                    iSent = false;
+                }
+                else
+                {
+                    Console.WriteLine("failed isAL with " + indata);
+                    iSent = false;
+                }
             }
-            else if (byt[0] == 0x10)
+            else if (isRdy == false)
             {
-                Console.WriteLine("Done");
+                if (indata == 0x02)
+                {
+                    isRdy = true;
+                    iSent = false;
+                }
+                else if (indata == 0x03)
+                {
+                    Console.WriteLine("Failed isrdy");
+                }
+                else
+                {
+                    Console.WriteLine("failed isrdy with " + indata);
+                }
             }
-
+            else
+            {
+                if (indata == 0x09)
+                {
+                    Console.WriteLine("Data Sent Success");
+                }
+                else if (indata == 0x03)
+                {
+                    Console.WriteLine("Failed Data Sent");
+                }
+                else
+                {
+                    Console.Write("Failed sent data with "+indata +"when state is"+i + "and Count"+ BitConverter.GetBytes(i).Count());
+                }
+                reset();
+            }
+           
         }
     }
 }
